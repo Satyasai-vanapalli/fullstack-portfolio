@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mysql-init-job
+  namespace: default
+spec:
+  template:
+    spec:
+      serviceAccountName: default
+      containers:
+      - name: mysql-init
+        image: mysql:8.0
+        command:
+        - sh
+        - -c
+        - |
+          mysql -h mysql-service -u root -p$MYSQL_ROOT_PASSWORD < /scripts/schema.sql
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: portfolio-secrets
+              key: MYSQL_ROOT_PASSWORD
+        volumeMounts:
+        - name: init-scripts
+          mountPath: /scripts
+      volumes:
+      - name: init-scripts
+        configMap:
+          name: mysql-init-scripts
+      restartPolicy: Never
+  backoffLimit: 3

@@ -1,0 +1,132 @@
+---
+- name: Setup Local Development Environment
+  hosts: localhost
+  gather_facts: yes
+  vars:
+    project_dir: "{{ ansible_user_dir }}/fullstack-portfolio"
+    mysql_port: 3306
+    backend_port: 8080
+    frontend_port: 3000
+
+  tasks:
+    - name: Check if Docker is installed
+      shell: which docker
+      register: docker_check
+      failed_when: docker_check.rc != 0
+      changed_when: false
+
+    - name: Check if Docker Compose is installed
+      shell: which docker-compose
+      register: docker_compose_check
+      failed_when: docker_compose_check.rc != 0
+      changed_when: false
+
+    - name: Create Docker network
+      docker_network:
+        name: portfolio-network
+        state: present
+
+    - name: Start MySQL container
+      docker_container:
+        name: portfolio-mysql
+        image: mysql:8.0
+        state: started
+        restart_policy: always
+        ports:
+          - "{{ mysql_port }}:3306"
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: portfolio_db
+        volumes:
+          - portfolio_mysql_data:/var/lib/mysql
+          - "{{ project_dir }}/database/schema.sql:/docker-entrypoint-initdb.d/schema.sql"
+        networks:
+          - name: portfolio-network
+        healthcheck:
+          test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+          timeout: 20s
+          retries: 10
+
+    - name: Wait for MySQL to be ready
+      wait_for:
+        port: "{{ mysql_port }}"
+        delay: 5
+        timeout: 30
+
+    - name: Build backend Docker image
+      docker_image:
+        name: portfolio-backend
+        build:
+          path: "{{ project_dir }}/backend"
+          dockerfile: Dockerfile
+        source: build
+        state: present
+
+    - name: Start backend container
+      docker_container:
+        name: portfolio-backend
+        image: portfolio-backend
+        state: started
+        restart_policy: always
+        ports:
+          - "{{ backend_port }}:8080"
+        env:
+          SPRING_DATASOURCE_URL: "jdbc:mysql://portfolio-mysql:3306/portfolio_db"
+          SPRING_DATASOURCE_USERNAME: "root"
+          SPRING_DATASOURCE_PASSWORD: "root"
+        networks:
+          - name: portfolio-network
+        links:
+          - portfolio-mysql:mysql
+        depends_on:
+          - portfolio-mysql
+
+    - name: Build frontend Docker image
+      docker_image:
+        name: portfolio-frontend
+        build:
+          path: "{{ project_dir }}/frontend"
+          dockerfile: Dockerfile
+        source: build
+        state: present
+
+    - name: Start frontend container
+      docker_container:
+        name: portfolio-frontend
+        image: portfolio-frontend
+        state: started
+        restart_policy: always
+        ports:
+          - "{{ frontend_port }}:3000"
+        env:
+          REACT_APP_API_URL: "http://localhost:{{ backend_port }}/api"
+        networks:
+          - name: portfolio-network
+        depends_on:
+          - portfolio-backend
+
+    - name: Wait for backend to be ready
+      wait_for:
+        host: localhost
+        port: "{{ backend_port }}"
+        delay: 5
+        timeout: 30
+
+    - name: Wait for frontend to be ready
+      wait_for:
+        host: localhost
+        port: "{{ frontend_port }}"
+        delay: 5
+        timeout: 30
+
+    - name: Display service URLs
+      debug:
+        msg: |
+          Application is running:
+          Frontend: http://localhost:{{ frontend_port }}
+          Backend API: http://localhost:{{ backend_port }}/api
+          MySQL: localhost:{{ mysql_port }}
+          
+          Demo Credentials:
+          Admin - username: admin, password: admin123
+          User - username: user, password: user123

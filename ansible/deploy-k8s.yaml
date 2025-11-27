@@ -1,0 +1,118 @@
+---
+- name: Deploy Portfolio Application to Kubernetes
+  hosts: kubernetes_cluster
+  gather_facts: yes
+  vars:
+    docker_username: "{{ docker_username }}"
+    docker_password: "{{ docker_password }}"
+    k8s_namespace: default
+    docker_registry: "docker.io"
+
+  tasks:
+    - name: Verify kubectl is installed
+      shell: which kubectl
+      register: kubectl_check
+      failed_when: kubectl_check.rc != 0
+
+    - name: Get current Kubernetes context
+      shell: kubectl config current-context
+      register: k8s_context
+      changed_when: false
+
+    - name: Display Kubernetes context
+      debug:
+        msg: "Deploying to Kubernetes context: {{ k8s_context.stdout }}"
+
+    - name: Create Docker registry secret
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: dockerhub-secret
+            namespace: "{{ k8s_namespace }}"
+          type: kubernetes.io/dockercfg
+          data:
+            .dockercfg: "{{ lookup('template', 'dockerconfig.json') | b64encode }}"
+
+    - name: Apply ConfigMap
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('file', '../kubernetes/config.yaml') }}"
+
+    - name: Apply MySQL initialization ConfigMap
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: mysql-init-scripts
+            namespace: "{{ k8s_namespace }}"
+          data:
+            schema.sql: "{{ lookup('file', '../database/schema.sql') }}"
+
+    - name: Deploy MySQL
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('file', '../kubernetes/mysql-deployment.yaml') }}"
+
+    - name: Wait for MySQL to be ready
+      kubernetes.core.k8s_info:
+        kind: Pod
+        namespace: "{{ k8s_namespace }}"
+        label_selectors:
+          - app=mysql
+      register: mysql_pods
+      until: mysql_pods.resources | length > 0 and mysql_pods.resources[0].status.phase == "Running"
+      retries: 30
+      delay: 10
+
+    - name: Deploy Backend
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('file', '../kubernetes/backend-deployment.yaml') }}"
+
+    - name: Deploy Frontend
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('file', '../kubernetes/frontend-deployment.yaml') }}"
+
+    - name: Apply HPA configurations
+      kubernetes.core.k8s:
+        state: present
+        definition: "{{ lookup('file', '../kubernetes/hpa.yaml') }}"
+
+    - name: Get backend service URL
+      kubernetes.core.k8s_info:
+        kind: Service
+        name: backend-service
+        namespace: "{{ k8s_namespace }}"
+      register: backend_service
+
+    - name: Get frontend service URL
+      kubernetes.core.k8s_info:
+        kind: Service
+        name: frontend-service
+        namespace: "{{ k8s_namespace }}"
+      register: frontend_service
+
+    - name: Display service URLs
+      debug:
+        msg: |
+          Backend URL: {{ backend_service.resources[0].status.loadBalancer.ingress[0].ip | default('pending') }}:{{ backend_service.resources[0].spec.ports[0].port }}
+          Frontend URL: {{ frontend_service.resources[0].status.loadBalancer.ingress[0].ip | default('pending') }}:{{ frontend_service.resources[0].spec.ports[0].port }}
+
+    - name: Verify deployments are running
+      kubernetes.core.k8s_info:
+        kind: Deployment
+        namespace: "{{ k8s_namespace }}"
+      register: deployments
+      until: (deployments.resources | map(attribute='status.readyReplicas') | select('defined') | map(int) | sum) == (deployments.resources | map(attribute='spec.replicas') | map(int) | sum)
+      retries: 30
+      delay: 10
+
+    - name: Display deployment status
+      debug:
+        msg: "All deployments are healthy and running"

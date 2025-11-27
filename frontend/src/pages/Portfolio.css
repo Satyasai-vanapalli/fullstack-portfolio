@@ -1,0 +1,118 @@
+.portfolio-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.portfolio-header {
+  text-align: center;
+  color: white;
+  margin-bottom: 3rem;
+  padding: 2rem 0;
+}
+
+.portfolio-header h2 {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.portfolio-header p {
+  font-size: 1.2rem;
+  opacity: 0.9;
+}
+
+.portfolio-section {
+  background: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.portfolio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 2rem;
+}
+
+.portfolio-item {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: transform 0.3s, box-shadow 0.3s;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.portfolio-item:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
+}
+
+.portfolio-item-content {
+  padding: 2rem;
+  color: white;
+}
+
+.portfolio-item-content h3 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.description {
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+  opacity: 0.95;
+}
+
+.technologies {
+  margin-bottom: 1.5rem;
+}
+
+.technologies strong {
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.tech-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tech-badge {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.portfolio-link {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  text-decoration: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  transition: background 0.3s;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.portfolio-link:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.loading,
+.no-data {
+  text-align: center;
+  color: #666;
+  padding: 2rem;
+}
+
+.error-message {
+  background-color: #f8d7da;
+  color: #721c24;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1.5rem;
+  border: 1px solid #f5c6cb;
+}
